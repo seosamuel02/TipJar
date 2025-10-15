@@ -1,103 +1,175 @@
-import Image from "next/image";
+'use client'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  connectWallet,
+  getAccountAndNetwork,
+  readContractBalance,
+  readOwner,
+  sendTip,
+  withdrawTips,
+} from '@/lib/eth'
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [account, setAccount] = useState<string | undefined>(undefined)
+  const [chainId, setChainId] = useState<number | undefined>(undefined)
+  const [chainName, setChainName] = useState<string | undefined>(undefined)
+  const [balanceEth, setBalanceEth] = useState<string>('0')
+  const [owner, setOwner] = useState<string>('')
+  const [amount, setAmount] = useState<string>('0.01')
+  const [loading, setLoading] = useState<boolean>(false)
+  const [message, setMessage] = useState<string>('')
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  useEffect(() => {
+    refreshBasics()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function getErrorMessage(err: unknown): string {
+    if (typeof err === 'string') return err
+    if (err && typeof err === 'object' && 'message' in err) {
+      const msg = (err as { message?: unknown }).message
+      if (typeof msg === 'string') return msg
+    }
+    return ''
+  }
+
+  async function refreshBasics() {
+    try {
+      const info = await getAccountAndNetwork()
+      setAccount(info.account)
+      setChainId(info.chainId)
+      setChainName(info.chainName)
+      const [b, o] = await Promise.all([readContractBalance(), readOwner()])
+      setBalanceEth(b)
+      setOwner(o)
+    } catch (e) {
+      // 무시: 초기 로드에서 지갑이 없어도 됨
+    }
+  }
+
+  async function onConnect() {
+    setLoading(true)
+    setMessage('')
+    try {
+      const addr = await connectWallet()
+      setAccount(addr)
+      await refreshBasics()
+      setMessage('지갑이 연결되었습니다.')
+    } catch (e: unknown) {
+      const msg = getErrorMessage(e) || '지갑 연결 실패'
+      setMessage(msg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function onSendTip() {
+    setLoading(true)
+    setMessage('')
+    try {
+      const hash = await sendTip(amount)
+      await refreshBasics()
+      setMessage(`Tip 전송 완료: ${hash}`)
+    } catch (e: unknown) {
+      const msg = getErrorMessage(e) || 'Tip 전송 실패'
+      setMessage(msg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function onWithdraw() {
+    setLoading(true)
+    setMessage('')
+    try {
+      const hash = await withdrawTips()
+      await refreshBasics()
+      setMessage(`인출 완료: ${hash}`)
+    } catch (e: unknown) {
+      const msg = getErrorMessage(e) || '인출 실패'
+      setMessage(msg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const isOwner = useMemo(
+    () => owner && account && owner.toLowerCase() === account.toLowerCase(),
+    [owner, account]
+  )
+
+  return (
+    <div className="font-sans min-h-screen p-8 sm:p-20 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Tip Jar</h1>
+
+      <section className="mb-6 p-4 border rounded-md">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-sm text-gray-500">계정</div>
+            <div className="font-mono break-all">
+              {account ?? '연결되지 않음'}
+            </div>
+          </div>
+          <button
+            onClick={onConnect}
+            disabled={loading}
+            className="rounded-lg px-4 py-2.5 bg-gradient-to-r from-black to-gray-800 text-white shadow hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black disabled:opacity-50"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            {account ? '지갑 새로고침' : '지갑 연결'}
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+        <div className="mt-3 text-sm text-gray-600">
+          네트워크: {chainName ?? '-'} ({chainId ?? '-'})
+        </div>
+      </section>
+
+      <section className="mb-6 p-4 border rounded-md">
+        <div className="text-sm text-gray-500">컨트랙트 잔액 (ETH)</div>
+        <div className="text-xl font-semibold">{balanceEth}</div>
+      </section>
+
+      <section className="mb-6 p-4 border rounded-md">
+        <div className="text-sm text-gray-500">오너</div>
+        <div className="font-mono break-all">{owner || '-'}</div>
+      </section>
+
+      <section className="mb-6 p-4 border rounded-md">
+        <div className="mb-3">
+          <label className="block text-sm text-gray-500 mb-1">
+            Tip 금액 (ETH)
+          </label>
+          <input
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="w-full border rounded-md px-3 py-2"
+            placeholder="0.01"
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={onSendTip}
+            disabled={loading}
+            className="rounded-md px-3 py-2 text-white bg-blue-600 disabled:opacity-50"
+          >
+            Tip 보내기
+          </button>
+          {isOwner && (
+            <button
+              onClick={onWithdraw}
+              disabled={loading}
+              className="rounded-md px-3 py-2 text-white bg-emerald-600 disabled:opacity-50"
+            >
+              잔액 인출
+            </button>
+          )}
+        </div>
+      </section>
+
+      {message && (
+        <div className="mt-4 p-3 border rounded-md bg-gray-50 text-sm break-all">
+          {message}
+        </div>
+      )}
     </div>
-  );
+  )
 }
