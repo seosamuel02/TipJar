@@ -101,6 +101,7 @@ export default function Home() {
   return (
     <div className="font-sans min-h-screen p-8 sm:p-20 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Tip Jar</h1>
+      <p className="text-sm text-gray-500">92113669 서동민</p>
 
       <section className="mb-6 p-4 border rounded-md">
         <div className="flex items-center justify-between gap-4">
